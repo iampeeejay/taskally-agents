@@ -1,0 +1,14 @@
+langchain-core
+langchain-text-splitters
+langchain-community
+langchain-chroma
+langchain-openai
+chromadb
+fastapi
+uvicorn
+python-dotenv
+beautifulsoup4
+pypdf
+httpx
+pydantic
+openai

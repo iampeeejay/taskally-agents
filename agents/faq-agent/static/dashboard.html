@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Dashboard</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; font-family:system-ui, -apple-system, sans-serif; }
+body { background:#f5f7fa; color:#1a1a2e; }
+.sidebar { position:fixed; left:0; top:0; width:220px; height:100vh; background:#1a1a2e; color:#fff; padding:20px; }
+.sidebar h2 { font-size:16px; margin-bottom:20px; opacity:0.8; }
+.sidebar a { display:block; padding:10px 15px; color:#ccc; text-decoration:none; border-radius:6px; margin:4px 0; cursor:pointer; }
+.sidebar a:hover, .sidebar a.active { background:#2d3a5e; color:#fff; }
+.main { margin-left:220px; padding:30px; }
+.card { background:#fff; border-radius:10px; padding:20px; margin-bottom:20px; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
+.card h3 { font-size:15px; color:#666; margin-bottom:12px; }
+.row { display:flex; gap:16px; margin-bottom:20px; }
+.stat-box { background:#fff; border-radius:10px; padding:20px; text-align:center; flex:1; box-shadow:0 1px 3px rgba(0,0,0,0.08); }
+.stat-box .num { font-size:28px; font-weight:700; color:#1a1a2e; }
+.stat-box .label { font-size:13px; color:#888; margin-top:6px; }
+.form-group { margin-bottom:14px; }
+.form-group label { display:block; font-size:13px; color:#555; margin-bottom:4px; font-weight:600; }
+.form-group input, .form-group textarea { width:100%; padding:10px 12px; border:1px solid #dde; border-radius:6px; font-size:14px; }
+.form-group textarea { min-height:80px; resize:vertical; }
+.btn { background:#1a73e8; color:#fff; border:none; padding:10px 24px; border-radius:6px; font-size:14px; cursor:pointer; }
+.btn:hover { background:#1557b0; }
+.btn-sm { padding:6px 14px; font-size:13px; }
+.alert { padding:12px 16px; border-radius:6px; margin-bottom:12px; }
+.alert-success { background:#e8f5e9; color:#1b5e20; }
+.alert-error { background:#fce8e8; color:#c62828; }
+.q-item { border-bottom:1px solid #eee; padding:10px 0; }
+.q-item .q { font-weight:600; font-size:14px; }
+.q-item .a { color:#555; font-size:13px; margin-top:4px; }
+.q-item .meta { color:#999; font-size:12px; }
+#login-screen { display:flex; align-items:center; justify-content:center; height:100vh; background:#f5f7fa; }
+#login-box { background:#fff; padding:40px; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.1); text-align:center; max-width:400px; }
+#login-box h1 { font-size:22px; margin-bottom:8px; }
+#login-box p { color:#888; margin-bottom:20px; }
+#login-box input { width:100%; padding:12px; border:1px solid #dde; border-radius:6px; font-size:16px; margin-bottom:12px; }
+.hidden { display:none !important; }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div id="login-box">
+    <h1>🔐 Agent Dashboard</h1>
+    <p>Enter your admin password</p>
+    <input type="password" id="login-pass" placeholder="Password" onkeydown="if(e.key==='Enter')login()">
+    <button class="btn" onclick="login()" style="width:100%">Sign In</button>
+    <div id="login-error" class="alert-error hidden" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+<div class="sidebar">
+  <h2>📊 Agent Control</h2>
+  <a class="active" onclick="showTab('overview')" data-tab="overview">📋 Overview</a>
+  <a onclick="showTab('knowledge')" data-tab="knowledge">📝 Knowledge Base</a>
+  <a onclick="showTab('questions')" data-tab="questions">💬 Question Log</a>
+  <a onclick="showTab('ask')" data-tab="ask">🔍 Test Ask</a>
+</div>
+<div class="main">
+  <div id="tab-overview" class="tab-content">
+    <div class="row" id="stats-row"></div>
+    <div class="card">
+      <h3>Quick Start</h3>
+      <p style="font-size:14px;color:#555;line-height:1.6">
+        1. Go to <strong>Knowledge Base</strong> and enter your business info<br>
+        2. Click <strong>Save & Re-ingest</strong> — the agent learns instantly<br>
+        3. Test it in the <strong>Test Ask</strong> tab<br>
+        4. Give your customers the API link or chat widget
+      </p>
+    </div>
+  </div>
+  <div id="tab-knowledge" class="tab-content hidden"></div>
+  <div id="tab-questions" class="tab-content hidden"></div>
+  <div id="tab-ask" class="tab-content hidden">
+    <div class="card">
+      <h3>🧪 Test your agent</h3>
+      <div class="form-group">
+        <label>Ask a question</label>
+        <input type="text" id="test-q" placeholder="e.g. What skincare products do you sell?" style="width:70%;display:inline-block">
+        <button class="btn btn-sm" onclick="testAsk()">Ask</button>
+      </div>
+      <div id="test-result" style="margin-top:10px;padding:12px;background:#f0f4f8;border-radius:6px;display:none"></div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+let authed = false;
+
+function login() {
+  const pass = document.getElementById('login-pass').value;
+  fetch('/api/login', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({password:pass}), credentials:'include'})
+  .then(r => { if(!r.ok) throw new Error('Wrong password'); return r.json(); })
+  .then(() => { authed = true; document.getElementById('login-screen').classList.add('hidden'); document.getElementById('app').classList.remove('hidden'); loadOverview(); loadKnowledge(); })
+  .catch(e => { document.getElementById('login-error').textContent = 'Wrong password. Try again.'; document.getElementById('login-error').classList.remove('hidden'); });
+}
+
+function showTab(name) {
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.add('hidden'));
+  document.querySelectorAll('.sidebar a').forEach(a => a.classList.remove('active'));
+  document.querySelector(`[data-tab="${name}"]`).classList.add('active');
+  document.getElementById(`tab-${name}`).classList.remove('hidden');
+  if(name === 'overview') loadOverview();
+  if(name === 'knowledge') loadKnowledge();
+  if(name === 'questions') loadQuestions();
+}
+
+function api(path, opts={}) {
+  return fetch(path, {credentials:'include', ...opts}).then(r => { if(r.status === 401) { alert('Session expired. Reload to login.'); location.reload(); } return r.json(); });
+}
+
+function loadOverview() {
+  api('/api/stats').then(d => {
+    document.getElementById('stats-row').innerHTML = `
+      <div class="stat-box"><div class="num">${d.knowledge_chunks}</div><div class="label">Knowledge Chunks</div></div>
+      <div class="stat-box"><div class="num">${d.questions_answered}</div><div class="label">Questions Answered</div></div>
+      <div class="stat-box"><div class="num">${d.last_question ? new Date(d.last_question).toLocaleDateString() : '—'}</div><div class="label">Last Question</div></div>
+    `;
+  });
+}
+
+function loadKnowledge() {
+  api('/api/knowledge').then(k => {
+    let html = '<div class="card"><h3>📝 Your Business Info</h3><p style="color:#888;font-size:13px;margin-bottom:12px">Edit your business details. The agent uses this to answer customer questions.</p>';
+    const fields = [
+      ['company_name', 'Company Name', 'text'],
+      ['about', 'About Your Business', 'textarea'],
+      ['products', 'Products & Prices', 'textarea'],
+      ['delivery', 'Delivery Info', 'textarea'],
+      ['payment', 'Payment Methods', 'textarea'],
+      ['returns', 'Returns & Refunds', 'textarea'],
+      ['contact', 'Contact Info', 'textarea'],
+      ['faqs', 'FAQs (Q: ...? \\nA: ...)', 'textarea'],
+    ];
+    for(const [key, label, type] of fields) {
+      const val = k[key] || '';
+      html += `<div class="form-group"><label>${label}</label>`;
+      if(type === 'text') html += `<input type="text" id="k-${key}" value="${val.replace(/"/g,'&quot;')}">`;
+      else html += `<textarea id="k-${key}" rows="4">${val}</textarea>`;
+      html += `</div>`;
+    }
+    html += `<button class="btn" onclick="saveKnowledge()">💾 Save & Re-ingest</button><div id="kb-status" style="margin-top:10px"></div></div>`;
+    document.getElementById('tab-knowledge').innerHTML = html;
+  });
+}
+
+function saveKnowledge() {
+  const k = {};
+  ['company_name','about','products','delivery','payment','returns','contact','faqs'].forEach(key => {
+    k[key] = document.getElementById(`k-${key}`).value;
+  });
+  api('/api/knowledge', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({knowledge:k})})
+  .then(d => {
+    document.getElementById('kb-status').innerHTML = `<div class="alert alert-success">✅ Saved! ${d.chunks_ingested || 0} chunks ingested into agent.</div>`;
+  })
+  .catch(e => {
+    document.getElementById('kb-status').innerHTML = `<div class="alert alert-error">❌ Error: ${e.message}</div>`;
+  });
+}
+
+function loadQuestions() {
+  api('/api/questions').then(d => {
+    const qs = d.questions;
+    let html = `<div class="card"><h3>💬 Questions Log (${qs.length} total)</h3>`;
+    if(qs.length === 0) html += '<p style="color:#888">No questions logged yet.</p>';
+    for(const q of qs) {
+      html += `<div class="q-item"><div class="q">❓ ${q.question}</div><div class="a">${q.answer}</div><div class="meta">${new Date(q.timestamp).toLocaleString()}</div></div>`;
+    }
+    html += '</div>';
+    document.getElementById('tab-questions').innerHTML = html;
+  });
+}
+
+function testAsk() {
+  const q = document.getElementById('test-q').value;
+  if(!q) return;
+  fetch('/ask', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({question:q})})
+  .then(r => r.json()).then(d => {
+    const el = document.getElementById('test-result');
+    el.style.display = 'block';
+    el.innerHTML = `<strong>Q:</strong> ${d.question}<br><br><strong>A:</strong> ${d.answer.replace(/\n/g,'<br>')}`;
+  });
+}
+</script>
+</body>
+</html>

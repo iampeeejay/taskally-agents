@@ -12,6 +12,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File
 from pydantic import BaseModel
 from pipeline.ingest import ingest_text, ingest_file, ingest_web, clear_knowledge_base, get_stats
 from pipeline.query import ask
+from api.dashboard import dashboard, log_question
 
 app = FastAPI(title="Task-ally FAQ Agent", version="1.0.0")
 
@@ -50,6 +51,8 @@ def health():
 def ask_question(req: AskRequest):
     """Ask a question and get an answer from the knowledge base."""
     result = ask(req.question, k=req.k)
+    # Log question for dashboard
+    log_question(req.question, result["answer"], result.get("sources", []))
     return AskResponse(
         question=result["question"],
         answer=result["answer"],
@@ -62,12 +65,18 @@ def ask_question(req: AskRequest):
 def ask_question_get(q: str, k: int = 5):
     """Ask a question via GET parameter."""
     result = ask(q, k=k)
+    log_question(q, result["answer"], result.get("sources", []))
     return AskResponse(
         question=result["question"],
         answer=result["answer"],
         sources=result.get("sources", []),
         has_context=result.get("has_context", False),
     )
+
+
+# ── Dashboard (client admin UI) ─────────────────────────────────────────
+
+app.mount("/dashboard", dashboard)
 
 
 # ── Ingest ─────────────────────────────────────────────────────────────

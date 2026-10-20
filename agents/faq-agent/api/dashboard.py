@@ -149,11 +149,10 @@ def update_knowledge(req: KnowledgeUpdate, request: Request):
     knowledge = {**load_knowledge(), **req.knowledge}
     save_knowledge(knowledge)
 
-    # Re-ingest into the agent's knowledge base
-    from pipeline.ingest import clear_knowledge_base, ingest_text
+    # Re-ingest into the agent's knowledge base (replace old client content in place)
+    from pipeline.ingest import replace_source
     try:
-        clear_knowledge_base()
-        n = ingest_text(knowledge_to_text(knowledge), source="client-knowledge")
+        n = replace_source(knowledge_to_text(knowledge), source="client-knowledge")
         return {"status": "ok", "chunks_ingested": n}
     except Exception as e:
         return {"status": "ok", "warning": f"Saved but ingest failed: {e}"}

@@ -90,6 +90,31 @@ def _ingest_documents(docs: list) -> int:
     return len(chunks)
 
 
+def replace_source(text: str, source: str = "client-knowledge") -> int:
+    """Replace all content from a source with new text (delete + re-ingest in place)."""
+    from langchain_core.documents import Document
+    
+    vectorstore = get_vectorstore()
+    try:
+        # Delete existing chunks from this source
+        vectorstore.delete(where={"source": source})
+    except Exception:
+        pass  # No existing chunks yet
+    
+    docs = [Document(page_content=text, metadata={"source": source})]
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=CHUNK_SIZE,
+        chunk_overlap=CHUNK_OVERLAP,
+        separators=["\n\n", "\n", ". ", " ", ""],
+    )
+    chunks = splitter.split_documents(docs)
+    for i, chunk in enumerate(chunks):
+        chunk.metadata["chunk_id"] = i
+    
+    vectorstore.add_documents(chunks)
+    return len(chunks)
+
+
 def clear_knowledge_base():
     """Remove all documents from the vector store."""
     import shutil
